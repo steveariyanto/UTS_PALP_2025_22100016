@@ -2,81 +2,75 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class AddStorePage extends StatefulWidget {
+class AddStorePage extends StatefulWidget{
   const AddStorePage({super.key});
 
   @override
-  State<AddStorePage> createState() => _AddStorePageState();
+  _AddStorePageState createState() => _AddStorePageState();
 }
 
 class _AddStorePageState extends State<AddStorePage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _codeCtrl = TextEditingController();
-  final TextEditingController _nameCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nimController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  
 
-  Future<void> _handleSubmit() async {
-    final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid) return;
+  void _saveStore() async {
+    if (_formKey.currentState!.validate()) {
+      final prefs = await SharedPreferences.getInstance();
+      final code = _nimController.text.trim();
+      final name = _nameController.text.trim();
 
-    final prefs = await SharedPreferences.getInstance();
-    final enteredCode = _codeCtrl.text.trim();
-    final enteredName = _nameCtrl.text.trim();
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('stores')
+          .where('code', isEqualTo: code)
+          .limit(1)
+          .get();
 
-    final existing = await FirebaseFirestore.instance
-        .collection('stores')
-        .where('code', isEqualTo: enteredCode)
-        .limit(1)
-        .get();
+      if (querySnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Store dengan kode tersebut tidak ditemukan.")),
+        );
+        return;
+      }
 
-    DocumentReference storeDoc;
+      final storeDoc = querySnapshot.docs.first;
+  
+      await prefs.setString('code', code);
+      await prefs.setString('name', name);
+      await prefs.setString('store_ref', storeDoc.reference.path);
 
-    if (existing.docs.isNotEmpty) {
-      storeDoc = existing.docs.first.reference;
-    } else {
-      final newEntry = await FirebaseFirestore.instance.collection('stores').add({
-        'code': enteredCode,
-        'name': enteredName,
-      });
-      storeDoc = newEntry;
-    }
-
-    await prefs.setString('code', enteredCode);
-    await prefs.setString('name', enteredName);
-    await prefs.setString('store_ref', storeDoc.path);
-
-    if (mounted) {
-      Navigator.of(context).pop();
+      if (mounted) Navigator.pop(context);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tambah Toko')),
+      appBar: AppBar(title: Text("Tambah Toko")),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
               TextFormField(
-                controller: _codeCtrl,
-                decoration: const InputDecoration(labelText: 'Kode Toko'),
-                validator: (val) => (val == null || val.trim().isEmpty)
-                    ? 'NIM tidak boleh kosong'
-                    : null,
+                controller: _nimController,
+                decoration: InputDecoration(labelText: "Kode Toko"),
+                validator: (value) =>
+                  value!.isEmpty ? 'NIM tidak boleh kosong' : null,
               ),
               TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(labelText: 'Nama Toko'),
-                validator: (val) => (val == null || val.trim().isEmpty)
-                    ? 'Nama Toko tidak boleh kosong'
-                    : null,
+                controller: _nameController,
+                decoration: InputDecoration(labelText: "Nama Toko"),
+                validator: (value) =>
+                  value!.isEmpty ? 'Nama Toko tidak boleh kosong' : null,
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _handleSubmit,
-                child: const Text('Simpan Toko'),
+                onPressed: _saveStore,
+                child: Text('Simpan Toko'),
               ),
             ],
           ),
